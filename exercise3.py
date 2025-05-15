@@ -67,37 +67,39 @@ class AntWorld(World):
     def geno2pheno(self, genotype):
         control_weights = genotype[-self.n_weights:]
         body_params = (genotype[:-self.n_weights] + 1.5) / 5 * 0.5 + 0.1
-        assert len(body_params) == 30
+        assert len(body_params) == BODY_PARAMS
         assert len(control_weights) == self.n_weights
         assert not np.any(body_params <= 0)
 
         self.controller.geno2pheno(control_weights)
 
-        self.leg_switches = body_params[:10]
-        self.leg_params = body_params[10:] # ordered as [leg_1_thigh_left, leg_1_ankle_left, leg_1_thigh_right, leg_1_ankle_right, leg_2_thigh_left, leg_2_ankle_left, leg_2_thigh_right, leg_2_ankle_right, ...]
-        self.leg_params = np.reshape(self.leg_params, (10, 2)) # 10 legs, 2 parameters each (thigh and ankle)
-        self.leg_param = np.reshape(self.leg_params, (5, 2, 2)) # 5 leg positions along the body, 1 per side, 2 parameters each (thigh and ankle)
+        num_legs = int(BODY_PARAMS/3)
+
+        self.leg_switches = body_params[:num_legs]
+        self.leg_params = body_params[num_legs:] # ordered as [leg_1_thigh_left, leg_1_ankle_left, leg_1_thigh_right, leg_1_ankle_right, leg_2_thigh_left, leg_2_ankle_left, leg_2_thigh_right, leg_2_ankle_right, ...]
+        self.leg_params = np.reshape(self.leg_params, (num_legs, 2)) # 8 legs, 2 parameters each (thigh and ankle)
+        self.leg_param = np.reshape(self.leg_params, (num_legs/2, 2, 2)) # 4 leg positions along the body, 1 per side, 2 parameters each (thigh and ankle)
 
         # Define the 3D coordinates of the relative tree structure
-        left_hip_xyz = np.zeros((5,3))
-        left_knee_xyz = np.zeros((5,3))
-        left_toe_xyz = np.zeros((5,3))
-        right_hip_xyz = np.zeros((5,3))
-        right_knee_xyz = np.zeros((5,3))
-        right_toe_xyz = np.zeros((5,3))
+        left_hip_xyz = np.zeros((num_legs/2,3))
+        left_knee_xyz = np.zeros((num_legs/2,3))
+        left_toe_xyz = np.zeros((num_legs/2,3))
+        right_hip_xyz = np.zeros((num_legs/2,3))
+        right_knee_xyz = np.zeros((num_legs/2,3))
+        right_toe_xyz = np.zeros((num_legs/2,3))
 
-        connectivity_mat = np.zeros((30, 30))
-        for i in range(5):
+        connectivity_mat = np.zeros((BODY_PARAMS, BODY_PARAMS))
+        for i in range(num_legs/2):
             if self.leg_switches[2*i] == 1:
                 left_hip_xyz[i] = np.array([0.2, 0.2-0.08*i, 0])
                 left_knee_xyz[i] = np.array(
                     [np.sqrt(0.5 * self.leg_param[i][0][0] ** 2), np.sqrt(0.5 * self.leg_param[i][0][0] ** 2), 0]) + left_hip_xyz[i]
                 left_toe_xyz[i] = np.array(
                     [np.sqrt(0.5 * self.leg_param[i][0][1] ** 2), np.sqrt(0.5 * self.leg_param[i][0][1] ** 2), 0]) + left_knee_xyz[i]
-                connectivity_mat[6*i, 6*i] = 150
-                connectivity_mat[6*i+1, 6*i+1] = 150
-                connectivity_mat[6*i, 6*i+1] = np.inf
-                connectivity_mat[6*i+1, 6*i+2] = np.inf
+                connectivity_mat[5*i, 5*i] = 150
+                connectivity_mat[5*i+1, 5*i+1] = 150
+                connectivity_mat[5*i, 5*i+1] = np.inf
+                connectivity_mat[5*i+1, 5*i+2] = np.inf
             else:
                 left_hip_xyz[i] = np.array([0.0, 0.0, 0])
                 left_knee_xyz[i] = np.array([0.0, 0.0, 0])
@@ -108,10 +110,10 @@ class AntWorld(World):
                     [-np.sqrt(0.5 * self.leg_param[i][1][0] ** 2), np.sqrt(0.5 * self.leg_param[i][1][0] ** 2), 0]) + right_hip_xyz[i]
                 right_toe_xyz[i] = np.array(
                     [-np.sqrt(0.5 * self.leg_param[i][1][1] ** 2), np.sqrt(0.5 * self.leg_param[i][1][1] ** 2), 0]) + right_knee_xyz[i]
-                connectivity_mat[6*i+3, 6*i] = 150
-                connectivity_mat[6*i+4, 6*i+4] = 150
-                connectivity_mat[6*i+3, 6*i+4] = np.inf
-                connectivity_mat[6*i+4, 6*i+5] = np.inf
+                connectivity_mat[5*i+3, 5*i] = 150
+                connectivity_mat[5*i+4, 5*i+4] = 150
+                connectivity_mat[5*i+3, 5*i+4] = np.inf
+                connectivity_mat[5*i+4, 5*i+5] = np.inf
             else:
                 right_hip_xyz[i] = np.array([0.0, 0.0, 0])
                 right_knee_xyz[i] = np.array([0.0, 0.0, 0])
@@ -164,10 +166,12 @@ class AntWorld(World):
         multi_obj_rewards_full = np.zeros((self.n_steps, self.n_repeats, 2))
 
         observations, info = envs.reset()
+        reshaped_obs = _reshape_observations(observations, self.leg_switches)
         done_mask = np.zeros(self.n_repeats, dtype=bool)
         for step in range(self.n_steps):
-            actions = np.where(done_mask[:, None], 0, self.controller.get_action(observations.T).T)
+            actions = np.where(done_mask[:, None], 0, self.controller.get_action(reshaped_obs.T).T)
             observations, rewards, dones, truncated, infos = envs.step(actions)
+            reshaped_obs = _reshape_observations(observations, self.leg_switches)
 
             # Store rewards for active environments only
             rewards_full[step, done_mask == False] = rewards[done_mask == False]
@@ -220,11 +224,13 @@ def generate_best_individual_video(world, video_name: str = 'EvoRob3_video.mp4')
     rewards_list = []
 
     observations, info = env.reset()
+    reshaped_obs = _reshape_observations(observations, world.leg_switches)
     frames = []
     for step in range(1000):
         frames.append(env.render())
-        action = world.controller.get_action(observations)
+        action = world.controller.get_action(reshaped_obs)
         observations, rewards, terminated, truncated, info = env.step(action)
+        reshaped_obs = _reshape_observations(observations, world.leg_switches)
         rewards_list.append(rewards)
         if terminated:
             break
@@ -278,34 +284,36 @@ def visualise_individual(genotype):
 
 def _reshape_observations(observations, leg_switches):
     # Reshape the observations to match the expected input shape of the controller
-    reshaped_observations = np.zeros((27+12+12))
+    reshaped_observations = np.zeros((27+ADDED_LEGS*4+ADDED_LEGS*4,))
     reshaped_observations[:5] = observations[:5]
 
     last_idx = 5
 
-    for i in range(10):
+    for i in range(8):
         if leg_switches[i] == 1:
             reshaped_observations[5 + i * 2:5 + i * 2 + 2] = observations[last_idx:last_idx + 2]
             last_idx += 2
         else:
             reshaped_observations[5 + i * 2:5 + i * 2 + 2] = 0.0
 
-    reshaped_observations[25:31] = observations[last_idx:last_idx + 6]
+    idx = 5 + 2 * 8
+    reshaped_observations[idx:idx+6] = observations[last_idx:last_idx + 6]
+    idx += 6
     last_idx += 6
 
-    for i in range(10):
+    for i in range(8):
         if leg_switches[i] == 1:
-            reshaped_observations[31 + i * 2:31 + i * 2 + 2] = observations[last_idx:last_idx + 2]
+            reshaped_observations[idx + i * 2:idx + i * 2 + 2] = observations[last_idx:last_idx + 2]
             last_idx += 2
         else:
-            reshaped_observations[31 + i * 2:31 + i * 2 + 2] = 0.0
+            reshaped_observations[idx + i * 2:idx + i * 2 + 2] = 0.0
 
     return reshaped_observations
 
 def main():
     # %% Understanding the world
     # genotype = np.random.uniform(-1, 1, 945+4)
-    genotype = np.random.uniform(-1, 1, 3621+30)  # 10 leg switches, 2*10 parameters per leg, 3621 NN weights
+    genotype = np.random.uniform(-1, 1, 3621+BODY_PARAMS)  # 10 leg switches, 2*10 parameters per leg, 3621 NN weights
     visualise_individual(genotype)
     return
     # %% Optimise single-objective
