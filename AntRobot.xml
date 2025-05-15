@@ -1,0 +1,17 @@
+<?xml version="1.0" ?>
+<mujoco>
+    <default>
+        <joint armature="1" damping="1" limited="true"/>
+        <geom condim="3" conaffinity="0" density="5.0" friction="1 0.5 0.5" margin="0.01" rgba="0.8 0.6 0.4 1"/>
+    </default>
+    <worldbody>
+        <body name="Base" pos="0.0 0.0 0.75">
+            <joint type="free" armature="0" damping="0" limited="false" margin="0.01" pos="0 0 0"/>
+            <geom type="sphere" rgba="0.8 0.6 0.4 1" size="0.25"/>
+            <camera name="track" mode="trackcom" pos="0 -3 0.3" xyaxes="1 0 0 0 0 1"/>
+        </body>
+    </worldbody>
+    <actuator/>
+    <sensor/>
+    <contact/>
+</mujoco>
