@@ -36,8 +36,8 @@ class AntWorld(World):
         self.n_repeats = 5
         self.n_steps = 1000
         self.controller = MLP.NNController(state_space, action_space)
-        print(f"Controller weights: {self.controller.n_params}")
-        print(f"Genome size: {self.controller.n_params + BODY_PARAMS}")
+        #print(f"Controller weights: {self.controller.n_params}")
+        #print(f"Genome size: {self.controller.n_params + BODY_PARAMS}")
         self.n_weights = self.controller.n_params
 
         self.leg_switches = np.zeros(10)
@@ -73,8 +73,9 @@ class AntWorld(World):
         self.controller.geno2pheno(control_weights)
 
         num_legs = int(BODY_PARAMS/3)
-        print(f"Body params: {body_params}")
+        #print(f"Body params: {body_params}")
         self.leg_switches = (body_params[:num_legs] + 1.0) / 2
+        print(f"Leg switches: {self.leg_switches}")
         self.leg_params = (body_params[num_legs:] + 1.5) / 5 * 0.5 + 0.1 # ordered as [leg_1_thigh_left, leg_1_ankle_left, leg_1_thigh_right, leg_1_ankle_right, leg_2_thigh_left, leg_2_ankle_left, leg_2_thigh_right, leg_2_ankle_right, ...]
         assert not np.any(self.leg_params <= 0)
         self.leg_params = np.reshape(self.leg_params, (num_legs, 2)) # 8 legs, 2 parameters each (thigh and ankle)
@@ -89,7 +90,7 @@ class AntWorld(World):
         right_knee_xyz = np.zeros((legs_per_side,3))
         right_toe_xyz = np.zeros((legs_per_side,3))
 
-        connectivity_mat = np.zeros((BODY_PARAMS, BODY_PARAMS))
+        connectivity_mat = np.zeros((num_legs*3, num_legs*3))
         for i in range(legs_per_side):
             if self.leg_switches[2*i] >= 0.5:
                 left_hip_xyz[i] = np.array([0.2, 0.2-0.08*i, 0])
@@ -97,10 +98,10 @@ class AntWorld(World):
                     [np.sqrt(0.5 * self.leg_param[i][0][0] ** 2), np.sqrt(0.5 * self.leg_param[i][0][0] ** 2), 0]) + left_hip_xyz[i]
                 left_toe_xyz[i] = np.array(
                     [np.sqrt(0.5 * self.leg_param[i][0][1] ** 2), np.sqrt(0.5 * self.leg_param[i][0][1] ** 2), 0]) + left_knee_xyz[i]
-                connectivity_mat[5*i, 5*i] = 150
-                connectivity_mat[5*i+1, 5*i+1] = 150
-                connectivity_mat[5*i, 5*i+1] = np.inf
-                connectivity_mat[5*i+1, 5*i+2] = np.inf
+                connectivity_mat[6*i, 6*i] = 150
+                connectivity_mat[6*i+1, 6*i+1] = 150
+                connectivity_mat[6*i, 6*i+1] = np.inf
+                connectivity_mat[6*i+1, 6*i+2] = np.inf
             else:
                 left_hip_xyz[i] = np.array([0.0, 0.0, 0])
                 left_knee_xyz[i] = np.array([0.0, 0.0, 0])
@@ -111,10 +112,10 @@ class AntWorld(World):
                     [-np.sqrt(0.5 * self.leg_param[i][1][0] ** 2), np.sqrt(0.5 * self.leg_param[i][1][0] ** 2), 0]) + right_hip_xyz[i]
                 right_toe_xyz[i] = np.array(
                     [-np.sqrt(0.5 * self.leg_param[i][1][1] ** 2), np.sqrt(0.5 * self.leg_param[i][1][1] ** 2), 0]) + right_knee_xyz[i]
-                connectivity_mat[5*i+3, 5*i+3] = 150
-                connectivity_mat[5*i+4, 5*i+4] = 150
-                connectivity_mat[5*i+3, 5*i+4] = np.inf
-                connectivity_mat[5*i+4, 5*i+5] = np.inf
+                connectivity_mat[6*i+3, 6*i+3] = 150
+                connectivity_mat[6*i+4, 6*i+4] = 150
+                connectivity_mat[6*i+3, 6*i+4] = np.inf
+                connectivity_mat[6*i+4, 6*i+5] = np.inf
             else:
                 right_hip_xyz[i] = np.array([0.0, 0.0, 0])
                 right_knee_xyz[i] = np.array([0.0, 0.0, 0])
@@ -130,8 +131,8 @@ class AntWorld(World):
             points.append(right_toe_xyz[i])
         
         points = np.vstack(points)
-        print(f"Points: {points}")
-        print(f"Connectivity matrix: {connectivity_mat}")
+        #print(f"Points: {points}")
+        #print(f"Connectivity matrix: {connectivity_mat}")
         return points, connectivity_mat
 
     def evaluate_individual(self, genotype):
@@ -171,7 +172,10 @@ class AntWorld(World):
         done_mask = np.zeros(self.n_repeats, dtype=bool)
         for step in range(self.n_steps):
             actions = np.where(done_mask[:, None], 0, self.controller.get_action(reshaped_obs.T).T)
-            observations, rewards, dones, truncated, infos = envs.step(actions)
+            reshaped_action = _reshape_actions(actions, self.leg_switches)
+            #print(f"Original action: {actions}")
+            #print(f"Reshaped action: {reshaped_action}")
+            observations, rewards, dones, truncated, infos = envs.step(reshaped_action)
             reshaped_obs = _reshape_observations(observations, self.leg_switches)
 
             # Store rewards for active environments only
@@ -225,17 +229,18 @@ def generate_best_individual_video(world, video_name: str = 'EvoRob3_video.mp4')
     rewards_list = []
 
     observations, info = env.reset()
-    reshaped_obs = _reshape_observations(observations, world.leg_switches)
+    reshaped_obs = _reshape_observation(observations, world.leg_switches)
     frames = []
     for step in range(1000):
         frames.append(env.render())
         action = world.controller.get_action(reshaped_obs)
-        observations, rewards, terminated, truncated, info = env.step(action)
-        reshaped_obs = _reshape_observations(observations, world.leg_switches)
+        reshaped_action = _reshape_action(action, world.leg_switches)
+        observations, rewards, terminated, truncated, info = env.step(reshaped_action)
+        reshaped_obs = _reshape_observation(observations, world.leg_switches)
         rewards_list.append(rewards)
         if terminated:
             break
-    print(np.sum(rewards_list))
+    #print(np.sum(rewards_list))
 
     import imageio
     imageio.mimsave(video_name, frames, fps=30)  # Set frames per second (fps)
@@ -265,58 +270,121 @@ def visualise_individual(genotype):
     rewards_list = []
 
     observations, info = env.reset()
-    print(observations)
-    print(len(observations))
-    reshaped_obs = _reshape_observations(observations, world.leg_switches)
-    print(reshaped_obs)
-    print(len(reshaped_obs))
-    print(reshaped_obs.shape)
+    #print(observations)
+    #print(len(observations))
+    reshaped_obs = _reshape_observation(observations, world.leg_switches)
+    #print(reshaped_obs)
+    #print(len(reshaped_obs))
+    #print(reshaped_obs.shape)
     for _ in range(100):
         sleep(0.1)
-    for step in range(3000):
+    for step in range(200):
         action = world.controller.get_action(reshaped_obs)
-        observations, rewards, terminated, truncated, info = env.step(action)
-        reshaped_obs = _reshape_observations(observations, world.leg_switches)
+        reshaped_action = _reshape_action(action, world.leg_switches)
+        observations, rewards, terminated, truncated, info = env.step(reshaped_action)
+        reshaped_obs = _reshape_observation(observations, world.leg_switches)
         rewards_list.append(rewards)
         if terminated:
             break
     env.close()
-    print(np.sum(rewards_list))
+    #print(np.sum(rewards_list))
 
-def _reshape_observations(observations, leg_switches):
+def _reshape_action(actions, leg_switches):
+    # Remove all the actions for the legs that are not active
+    reshaped_act = []
+    for i in range(8):
+        if leg_switches[i] >= 0.5:
+            reshaped_act.extend(actions[2*i:2*i+2])
+    return np.array(reshaped_act)
+
+def _reshape_observation(observations, leg_switches):
     # Reshape the observations to match the expected input shape of the controller
-    reshaped_observations = np.zeros((27+ADDED_LEGS*4+ADDED_LEGS*4,))
-    reshaped_observations[:5] = observations[:5]
+    reshaped_obs = np.zeros((27+ADDED_LEGS*4+ADDED_LEGS*4,))
+    reshaped_obs[:5] = observations[:5]
 
     last_idx = 5
 
     for i in range(8):
-        if leg_switches[i] == 1:
-            reshaped_observations[5 + i * 2:5 + i * 2 + 2] = observations[last_idx:last_idx + 2]
+        if leg_switches[i] >= 0.5:
+            reshaped_obs[5 + i * 2:5 + i * 2 + 2] = observations[last_idx:last_idx + 2]
             last_idx += 2
         else:
-            reshaped_observations[5 + i * 2:5 + i * 2 + 2] = 0.0
+            reshaped_obs[5 + i * 2:5 + i * 2 + 2] = 0.0
 
     idx = 5 + 2 * 8
-    reshaped_observations[idx:idx+6] = observations[last_idx:last_idx + 6]
+    reshaped_obs[idx:idx+6] = observations[last_idx:last_idx + 6]
     idx += 6
     last_idx += 6
 
     for i in range(8):
-        if leg_switches[i] == 1:
-            reshaped_observations[idx + i * 2:idx + i * 2 + 2] = observations[last_idx:last_idx + 2]
+        if leg_switches[i] >= 0.5:
+            reshaped_obs[idx + i * 2:idx + i * 2 + 2] = observations[last_idx:last_idx + 2]
             last_idx += 2
         else:
-            reshaped_observations[idx + i * 2:idx + i * 2 + 2] = 0.0
+            reshaped_obs[idx + i * 2:idx + i * 2 + 2] = 0.0
 
-    return reshaped_observations
+    return reshaped_obs
+
+def _reshape_actions(actions, leg_switches):
+    # Remove all the actions for the legs that are not active
+    if actions.ndim == 1:
+        actions = actions[None, :]
+    n_envs = actions.shape[0]
+    reshaped = []
+    for env_idx in range(n_envs):
+        act = actions[env_idx]
+        #print(f"Original action: {act}")
+        reshaped_act = []
+        for i in range(8):
+            if leg_switches[i] >= 0.5:
+                reshaped_act.extend(act[2*i:2*i+2])
+        #print(f"Reshaped action: {reshaped_act}")
+        reshaped.append(reshaped_act)
+    return np.array(reshaped)
+
+def _reshape_observations(observations, leg_switches):
+    # Reshape the observations to match the expected input shape of the controller
+    if observations.ndim == 1:
+        observations = observations[None, :]
+    n_envs = observations.shape[0]
+    reshaped = np.zeros((n_envs, 27+ADDED_LEGS*4+ADDED_LEGS*4))
+    for env_idx in range(n_envs):
+        obs = observations[env_idx]
+        reshaped_obs = np.zeros((27+ADDED_LEGS*4+ADDED_LEGS*4,))
+        reshaped_obs[:5] = obs[:5]
+
+        last_idx = 5
+
+        for i in range(8):
+            if leg_switches[i] >= 0.5:
+                reshaped_obs[5 + i * 2:5 + i * 2 + 2] = obs[last_idx:last_idx + 2]
+                last_idx += 2
+            else:
+                reshaped_obs[5 + i * 2:5 + i * 2 + 2] = 0.0
+
+        idx = 5 + 2 * 8
+        reshaped_obs[idx:idx+6] = obs[last_idx:last_idx + 6]
+        idx += 6
+        last_idx += 6
+
+        for i in range(8):
+            if leg_switches[i] >= 0.5:
+                reshaped_obs[idx + i * 2:idx + i * 2 + 2] = obs[last_idx:last_idx + 2]
+                last_idx += 2
+            else:
+                reshaped_obs[idx + i * 2:idx + i * 2 + 2] = 0.0
+        
+        reshaped[env_idx] = reshaped_obs
+
+    return reshaped
 
 def main():
     # %% Understanding the world
     # genotype = np.random.uniform(-1, 1, 945+4)
     genotype = np.random.uniform(-1, 1, 1003+BODY_PARAMS)  # 1003 NN weights, 10 leg switches, 2*10 parameters per leg
+    genotype[1003:] = 1.0
     visualise_individual(genotype)
-    return
+
     # %% Optimise single-objective
     world = AntWorld()
     n_parameters = world.n_params
