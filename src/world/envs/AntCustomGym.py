@@ -6,6 +6,7 @@ from gymnasium import utils
 from gymnasium.envs.mujoco import MujocoEnv
 from gymnasium.spaces import Box
 from src.utils.geometry import quat2rot
+import mujoco
 
 DEFAULT_CAMERA_CONFIG = {
     "distance": 5,
@@ -134,6 +135,30 @@ class AntCustomEnv(MujocoEnv, utils.EzPickle):
         reward = healthy_reward + forward_reward -ctrl_cost -cfrc_cost
         observation = self._get_obs()
 
+        body_volumes = {}
+
+        for i in range(self.model.ngeom):
+
+            body_id = self.model.geom_bodyid[i]
+
+            # skip  "world"
+            if body_id == 0: 
+                continue
+
+            size = self.model.geom_size[i] # more robust if multiple geometry
+            radius = size[0]
+            half_length = size[1]
+
+            geom_type = self.model.geom_type[i]
+            if geom_type != mujoco.mjtGeom.mjGEOM_CAPSULE:
+                print("Unexpected geometry type: ", geom_type)
+                continue
+
+            volume = np.pi * radius**2 * (2 * half_length) + (4/3) * np.pi * radius**3
+            body_volumes[body_id] = body_volumes.get(body_id, 0) + volume
+
+        total_volume = sum(v for k, v in body_volumes.items())
+
         info = {
             "reward_forward": forward_reward,
             "healthy_reward": healthy_reward,
@@ -144,6 +169,7 @@ class AntCustomEnv(MujocoEnv, utils.EzPickle):
             "distance_from_origin": np.linalg.norm(self.data.qpos[0:2], ord=2),
             "x_velocity": x_velocity,
             "y_velocity": y_velocity,
+            "total_volume": total_volume
         }
         terminated = False
         # Check for NaN, Inf, or huge values

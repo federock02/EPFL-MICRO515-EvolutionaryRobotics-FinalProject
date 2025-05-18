@@ -141,9 +141,10 @@ class AntRobot:
                                                          "margin":"0.01",
                                                          "pos":"0 0 0"})
 
-        xml.SubElement(ant_xml, "geom", attrib={"type": "sphere",
+        xml.SubElement(ant_xml, "geom", attrib={"type": "capsule", #sausage shape
                                                     "rgba": "0.8 0.6 0.4 1",
-                                                    "size": "0.25",
+                                                    "size": "0.25 0.75", #radius, half-length
+                                                    "euler": "0 90 0", #rotates the geometry around x,y,z axis (angle in degrees)
                                                     # "mass": "0.02"
                                                 })
         xml.SubElement(ant_xml, "camera", attrib={"name": "track",

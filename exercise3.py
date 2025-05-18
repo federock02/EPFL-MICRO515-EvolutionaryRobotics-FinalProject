@@ -39,7 +39,6 @@ class AntWorld(World):
         #print(f"Controller weights: {self.controller.n_params}")
         #print(f"Genome size: {self.controller.n_params + BODY_PARAMS}")
         self.n_weights = self.controller.n_params
-
         self.leg_switches = np.zeros(10)
 
         self.n_params = self.n_weights + BODY_PARAMS
@@ -63,6 +62,8 @@ class AntWorld(World):
                            [0, 0, 1], [-1, 1, 0],
                            [0, 0, 1], [1, 1, 0],
                            ]
+        
+    
 
     def geno2pheno(self, genotype):
         control_weights = genotype[:self.n_weights]
@@ -75,7 +76,7 @@ class AntWorld(World):
         num_legs = int(BODY_PARAMS/3)
         #print(f"Body params: {body_params}")
         self.leg_switches = (body_params[:num_legs] + 1.0) / 2
-        print(f"Leg switches: {self.leg_switches}")
+        #print(f"Leg switches: {self.leg_switches}")
         self.leg_params = (body_params[num_legs:] + 1.5) / 5 * 0.5 + 0.1 # ordered as [leg_1_thigh_left, leg_1_ankle_left, leg_1_thigh_right, leg_1_ankle_right, leg_2_thigh_left, leg_2_ankle_left, leg_2_thigh_right, leg_2_ankle_right, ...]
         assert not np.any(self.leg_params <= 0)
         self.leg_params = np.reshape(self.leg_params, (num_legs, 2)) # 8 legs, 2 parameters each (thigh and ankle)
@@ -91,49 +92,63 @@ class AntWorld(World):
         right_toe_xyz = np.zeros((legs_per_side,3))
 
         connectivity_mat = np.zeros((num_legs*3, num_legs*3))
+
+
+        body_length = 0.75 * 2 # capsule length * 2 to ensure even split of the legs
+        body_radius = 0.25 # capsule radius so that the legs do not start inside the body
+
+        legs_per_side = int(num_legs / 2)
+        margin = body_length / (legs_per_side * 2 + 2)
+        x_offsets = np.linspace(-body_length / 2 + margin, body_length / 2 - margin, legs_per_side)
+
         for i in range(legs_per_side):
-            if self.leg_switches[2*i] >= 0.5:
-                left_hip_xyz[i] = np.array([0.2, 0.2-0.08*i, 0])
-                left_knee_xyz[i] = np.array(
-                    [np.sqrt(0.5 * self.leg_param[i][0][0] ** 2), np.sqrt(0.5 * self.leg_param[i][0][0] ** 2), 0]) + left_hip_xyz[i]
-                left_toe_xyz[i] = np.array(
-                    [np.sqrt(0.5 * self.leg_param[i][0][1] ** 2), np.sqrt(0.5 * self.leg_param[i][0][1] ** 2), 0]) + left_knee_xyz[i]
+            x_pos = x_offsets[i]
+            thigh_l, ankle_l = self.leg_param[i][0]
+            thigh_r, ankle_r = self.leg_param[i][1]
+
+            # left legs
+            if self.leg_switches[2 * i] >= 0.5: # if leg there (switch on)
+                left_hip_xyz[i] = np.array([x_pos,  body_radius, 0])
+
+                left_knee_xyz[i] = left_hip_xyz[i] + np.array([0, thigh_l, -thigh_l * 0.5]) # thigh outward in +y, pointing a bit down in -z
+                left_toe_xyz[i] = left_knee_xyz[i] + np.array([0, 0, -ankle_l]) # ankle straight down in -z
+
                 connectivity_mat[6*i, 6*i] = 150
                 connectivity_mat[6*i+1, 6*i+1] = 150
                 connectivity_mat[6*i, 6*i+1] = np.inf
                 connectivity_mat[6*i+1, 6*i+2] = np.inf
-            else:
-                left_hip_xyz[i] = np.array([0.0, 0.0, 0])
-                left_knee_xyz[i] = np.array([0.0, 0.0, 0])
-                left_toe_xyz[i] = np.array([0.0, 0.0, 0])
-            if self.leg_switches[2*i+1] >= 0.5:
-                right_hip_xyz[i] = np.array([-0.2, 0.2-0.08*i, 0])
-                right_knee_xyz[i] = np.array(
-                    [-np.sqrt(0.5 * self.leg_param[i][1][0] ** 2), np.sqrt(0.5 * self.leg_param[i][1][0] ** 2), 0]) + right_hip_xyz[i]
-                right_toe_xyz[i] = np.array(
-                    [-np.sqrt(0.5 * self.leg_param[i][1][1] ** 2), np.sqrt(0.5 * self.leg_param[i][1][1] ** 2), 0]) + right_knee_xyz[i]
+            else: # if leg not there (switch off)
+                left_hip_xyz[i] = left_knee_xyz[i] = left_toe_xyz[i] = np.zeros(3)
+
+            # right legs
+            if self.leg_switches[2 * i + 1] >= 0.5: # if leg there (switch on)
+                right_hip_xyz[i] = np.array([x_pos, -body_radius, 0])
+
+                right_knee_xyz[i] = right_hip_xyz[i] + np.array([0, -thigh_r, -thigh_r * 0.5]) # thigh outward in -y, pointing a bit down in -z
+                right_toe_xyz[i] = right_knee_xyz[i] + np.array([0, 0, -ankle_r]) # ankle straight down in -z
+
                 connectivity_mat[6*i+3, 6*i+3] = 150
                 connectivity_mat[6*i+4, 6*i+4] = 150
                 connectivity_mat[6*i+3, 6*i+4] = np.inf
                 connectivity_mat[6*i+4, 6*i+5] = np.inf
-            else:
-                right_hip_xyz[i] = np.array([0.0, 0.0, 0])
-                right_knee_xyz[i] = np.array([0.0, 0.0, 0])
-                right_toe_xyz[i] = np.array([0.0, 0.0, 0])
+            else: # if leg not there (switch off)
+                right_hip_xyz[i] = right_knee_xyz[i] = right_toe_xyz[i] = np.zeros(3)
 
-        points = []
-        for i in range(4):
-            points.append(left_hip_xyz[i])
-            points.append(left_knee_xyz[i])
-            points.append(left_toe_xyz[i])
-            points.append(right_hip_xyz[i])
-            points.append(right_knee_xyz[i])
-            points.append(right_toe_xyz[i])
+            points = []
+            for i in range(4):
+                points.append(left_hip_xyz[i])
+                points.append(left_knee_xyz[i])
+                points.append(left_toe_xyz[i])
+                points.append(right_hip_xyz[i])
+                points.append(right_knee_xyz[i])
+                points.append(right_toe_xyz[i])
         
         points = np.vstack(points)
         #print(f"Points: {points}")
         #print(f"Connectivity matrix: {connectivity_mat}")
         return points, connectivity_mat
+
+
 
     def evaluate_individual(self, genotype):
         points, connectivity_mat = self.geno2pheno(genotype)      
@@ -184,7 +199,8 @@ class AntWorld(World):
             x_velocities = np.array(infos['reward_forward'])
             # Control cost is usually negative or zero, we want to maximize -cost
             control_costs = np.array(infos['ctrl_cost'])
-            multi_obj_reward_step = np.array([x_velocities, -control_costs]).T
+            total_volume = np.array(infos['total_volume'])
+            multi_obj_reward_step = np.array([x_velocities, -total_volume]).T
             multi_obj_rewards_full[step, done_mask == False] = multi_obj_reward_step[done_mask == False]
 
             # Update the done mask based on the "done" and "truncated" flags
@@ -236,6 +252,10 @@ def generate_best_individual_video(world, video_name: str = 'EvoRob3_video.mp4')
         action = world.controller.get_action(reshaped_obs)
         reshaped_action = _reshape_action(action, world.leg_switches)
         observations, rewards, terminated, truncated, info = env.step(reshaped_action)
+        if np.isnan(observations).any():
+            print("NaN in observation!")
+        if terminated:
+            print("Terminated:", terminated, "Info:", info)
         reshaped_obs = _reshape_observation(observations, world.leg_switches)
         rewards_list.append(rewards)
         if terminated:
@@ -381,12 +401,13 @@ def _reshape_observations(observations, leg_switches):
 def main():
     # %% Understanding the world
     # genotype = np.random.uniform(-1, 1, 945+4)
-    genotype = np.random.uniform(-1, 1, 1003+BODY_PARAMS)  # 1003 NN weights, 10 leg switches, 2*10 parameters per leg
+    #genotype = np.random.uniform(-1, 1, 1003+BODY_PARAMS)  # 1003 NN weights, 10 leg switches, 2*10 parameters per leg
+    genotype = np.random.uniform(-1, 1, 2537+BODY_PARAMS)  # 2537 NN weights, 10 leg switches, 2*10 parameters per leg
     genotype[1003:] = 1.0
     visualise_individual(genotype)
 
     # %% Optimise single-objective
-    world = AntWorld()
+    """ world = AntWorld()
     n_parameters = world.n_params
 
     population_size = 10
@@ -399,7 +420,7 @@ def main():
     results_dir = os.path.join(ROOT_DIR, 'results', ENV_NAME, 'single')
     ea_single = CMAES(population_size, n_parameters, CMAES_opts, results_dir)
 
-    run_EA_single(ea_single, world)
+    run_EA_single(ea_single, world) """
 
     # %% Optimise multi-objective
     # TODO implement NSGAII
@@ -421,7 +442,7 @@ def main():
 
     # %% visualise
     # TODO: Make a video of the best individual, and plot the fitness curve.
-    best_individual = np.load(os.path.join(results_dir, f"{NSGA_opts["num_generations"]-1}", "x_best.npy"))
+    best_individual = np.load(os.path.join(results_dir, f"{NSGA_opts['num_generations']-1}", "x_best.npy"))
 
     points, connectivity_mat = world.geno2pheno(best_individual)
     robot = AntRobot(points, connectivity_mat, world.joint_limits, world.joint_axis, verbose=False)

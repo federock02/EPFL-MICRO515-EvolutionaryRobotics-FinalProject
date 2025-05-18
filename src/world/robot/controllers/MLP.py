@@ -94,8 +94,8 @@ class NNController():
         :return: np.ndarray action: A vector of motor inputs
         """
 
-        print("State shape: ", state.shape)
-        print("Expected input size: ", self.n_input)
+        #print("State shape: ", state.shape)
+        #print("Expected input size: ", self.n_input)
 
         assert (state.shape[0] == self.n_input), "State does not correspond with expected input size"
         action = self.model.forward(state)

@@ -7,7 +7,7 @@
     <worldbody>
         <body name="Base" pos="0.0 0.0 0.75">
             <joint type="free" armature="0" damping="0" limited="false" margin="0.01" pos="0 0 0"/>
-            <geom type="sphere" rgba="0.8 0.6 0.4 1" size="0.25"/>
+            <geom type="capsule" rgba="0.8 0.6 0.4 1" size="0.25 0.75" euler="0 90 0"/>
             <camera name="track" mode="trackcom" pos="0 -3 0.3" xyaxes="1 0 0 0 0 1"/>
         </body>
     </worldbody>
