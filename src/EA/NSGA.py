@@ -63,15 +63,16 @@ class NSGAII():
             solutions, function_values, self.n_parents
         )
 
-        # plot the pareto front
-        plt.scatter(function_values[:, 0], function_values[:, 1], c='blue', label='Population')
-        plt.scatter(parents_fitness[:, 0], parents_fitness[:, 1], c='red', label='Selected Parents')
-        plt.xlabel('Objective 1')
-        plt.ylabel('Objective 2')
-        plt.title(f'Pareto Front at Generation {self.current_gen}')
-        plt.legend()
-        plt.savefig(os.path.join(self.directory_name, f'pareto_front_gen_{self.current_gen}.png'))
-        plt.close()
+        if self.current_gen % 10 == 0:
+            # plot the pareto front
+            plt.scatter(function_values[:, 0], function_values[:, 1], c='blue', label='Population')
+            plt.scatter(parents_fitness[:, 0], parents_fitness[:, 1], c='red', label='Selected Parents')
+            plt.xlabel('Objective 1')
+            plt.ylabel('Objective 2')
+            plt.title(f'Pareto Front at Generation {self.current_gen}')
+            plt.legend()
+            plt.savefig(os.path.join(self.directory_name, f'pareto_front_gen_{self.current_gen}.png'))
+            plt.close()
 
         #% Some bookkeeping
         self.full_fitness.append(function_values)
