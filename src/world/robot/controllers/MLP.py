@@ -80,7 +80,7 @@ class NNController():
         self.controller_type = "NN"
         self.n_input = n_states
         self.n_output = n_actions
-        self.model = NumpyNetwork(n_states, n_states, n_actions)
+        self.model = NumpyNetwork(n_states, 17, n_actions)
         self.n_params = self.model.n_con1 + self.model.n_con2
 
     def geno2pheno(self, genotype: np.array):

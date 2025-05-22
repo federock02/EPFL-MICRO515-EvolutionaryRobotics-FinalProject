@@ -24,7 +24,7 @@ ROOT_DIR = get_project_root()
 ENV_NAME = 'Ant_custom'
 
 ADDED_LEGS = 2 # per side
-BODY_PARAMS = 24 # 8 leg switches, 2*8 parameters per leg
+BODY_PARAMS = 25 # 8 leg switches, 2*8 parameters per leg, half sausage lenght
 
 
 class AntWorld(World):
@@ -39,6 +39,7 @@ class AntWorld(World):
         #print(f"Controller weights: {self.controller.n_params}")
         #print(f"Genome size: {self.controller.n_params + BODY_PARAMS}")
         self.n_weights = self.controller.n_params
+
         self.leg_switches = np.zeros(10)
 
         self.n_params = self.n_weights + BODY_PARAMS
@@ -62,8 +63,6 @@ class AntWorld(World):
                            [0, 0, 1], [-1, 1, 0],
                            [0, 0, 1], [1, 1, 0],
                            ]
-        
-    
 
     def geno2pheno(self, genotype):
         control_weights = genotype[:self.n_weights]
@@ -73,12 +72,14 @@ class AntWorld(World):
 
         self.controller.geno2pheno(control_weights)
 
-        num_legs = int(BODY_PARAMS/3)
-        #print(f"Body params: {body_params}")
+        num_legs = int((BODY_PARAMS-1)/3)
+        # print(f"Body params: {body_params}")
         self.leg_switches = (body_params[:num_legs] + 1.0) / 2
-        #print(f"Leg switches: {self.leg_switches}")
-        self.leg_params = (body_params[num_legs:] + 1.5) / 5 * 0.5 + 0.1 # ordered as [leg_1_thigh_left, leg_1_ankle_left, leg_1_thigh_right, leg_1_ankle_right, leg_2_thigh_left, leg_2_ankle_left, leg_2_thigh_right, leg_2_ankle_right, ...]
+        # print(f"Leg switches: {self.leg_switches}")
+        self.leg_params = (body_params[num_legs:-1] + 1.5) / 5 * 0.5 + 0.1 # ordered as [leg_1_thigh_left, leg_1_ankle_left, leg_1_thigh_right, leg_1_ankle_right, leg_2_thigh_left, leg_2_ankle_left, leg_2_thigh_right, leg_2_ankle_right, ...]
         assert not np.any(self.leg_params <= 0)
+        half_sausage_length = (body_params[-1] + 1) / 2.02 + 0.01
+        #print(f"Half sausage length: {half_sausage_length}")
         self.leg_params = np.reshape(self.leg_params, (num_legs, 2)) # 8 legs, 2 parameters each (thigh and ankle)
         self.leg_param = np.reshape(self.leg_params, (int(num_legs/2), 2, 2)) # 4 leg positions along the body, 1 per side, 2 parameters each (thigh and ankle)
 
@@ -93,8 +94,7 @@ class AntWorld(World):
 
         connectivity_mat = np.zeros((num_legs*3, num_legs*3))
 
-
-        body_length = 0.75 * 2 # capsule length * 2 to ensure even split of the legs
+        body_length = half_sausage_length * 2 # capsule length * 2 to ensure even split of the legs
         body_radius = 0.25 # capsule radius so that the legs do not start inside the body
 
         legs_per_side = int(num_legs / 2)
@@ -146,14 +146,12 @@ class AntWorld(World):
         points = np.vstack(points)
         #print(f"Points: {points}")
         #print(f"Connectivity matrix: {connectivity_mat}")
-        return points, connectivity_mat
-
-
+        return points, connectivity_mat, half_sausage_length
 
     def evaluate_individual(self, genotype):
-        points, connectivity_mat = self.geno2pheno(genotype)      
+        points, connectivity_mat, half_sausage_length = self.geno2pheno(genotype)      
 
-        robot = AntRobot(points, connectivity_mat, self.joint_limits, self.joint_axis, verbose=False)
+        robot = AntRobot(points, connectivity_mat, half_sausage_length, self.joint_limits, self.joint_axis, verbose=False)
         robot.xml = robot.define_robot()
         robot.write_xml()
 
@@ -233,6 +231,7 @@ def run_EA_multi(ea_multi, world):
         fitnesses_gen = np.empty((len(pop), 2))
         print(f"Generation {gen}")
         for index, genotype in enumerate(pop):
+            print(f"Evaluating individual {index}")
             _, fit_ind = world.evaluate_individual(genotype)
             fitnesses_gen[index] = fit_ind
         ea_multi.tell(pop, fitnesses_gen)
@@ -269,9 +268,9 @@ def generate_best_individual_video(world, video_name: str = 'EvoRob3_video.mp4')
 
 def visualise_individual(genotype):
     world = AntWorld()
-    points, connectivity_mat = world.geno2pheno(genotype)
+    points, connectivity_mat, half_sausage_length = world.geno2pheno(genotype)
 
-    robot = AntRobot(points, connectivity_mat, world.joint_limits, world.joint_axis, verbose=False)
+    robot = AntRobot(points, connectivity_mat, half_sausage_length, world.joint_limits, world.joint_axis, verbose=False)
     robot.xml = robot.define_robot()
     robot.write_xml()
 
@@ -402,8 +401,9 @@ def main():
     # %% Understanding the world
     # genotype = np.random.uniform(-1, 1, 945+4)
     #genotype = np.random.uniform(-1, 1, 1003+BODY_PARAMS)  # 1003 NN weights, 10 leg switches, 2*10 parameters per leg
-    genotype = np.random.uniform(-1, 1, 2537+BODY_PARAMS)  # 2537 NN weights, 10 leg switches, 2*10 parameters per leg
-    genotype[1003:] = 1.0
+    genotype = np.random.uniform(-1, 1, 1003+BODY_PARAMS)  # 2537 NN weights, 10 leg switches, 2*10 parameters per leg
+    # genotype[1003:] = 1.0
+    # genotype[-1] = 0
     visualise_individual(genotype)
 
     # %% Optimise single-objective
@@ -427,13 +427,13 @@ def main():
     world = AntWorld()
     n_parameters = world.n_params
 
-    population_size = 10
+    population_size = 20
     NSGA_opts["min"] = -1
     NSGA_opts["max"] = 1
     NSGA_opts["num_parents"] = population_size
-    NSGA_opts["num_generations"] = 10
-    NSGA_opts["mutation_prob"] = 0.3
-    NSGA_opts["crossover_prob"] = 0.5
+    NSGA_opts["num_generations"] = 20
+    NSGA_opts["mutation_prob"] = 0.03
+    NSGA_opts["crossover_prob"] = 0.05
 
     results_dir = os.path.join(ROOT_DIR, 'results', ENV_NAME, 'multi')
     ea_multi_obj = NSGAII(population_size, n_parameters, NSGA_opts, results_dir)
@@ -444,8 +444,8 @@ def main():
     # TODO: Make a video of the best individual, and plot the fitness curve.
     best_individual = np.load(os.path.join(results_dir, f"{NSGA_opts['num_generations']-1}", "x_best.npy"))
 
-    points, connectivity_mat = world.geno2pheno(best_individual)
-    robot = AntRobot(points, connectivity_mat, world.joint_limits, world.joint_axis, verbose=False)
+    points, connectivity_mat, half_sausage_length = world.geno2pheno(best_individual)
+    robot = AntRobot(points, connectivity_mat, half_sausage_length, world.joint_limits, world.joint_axis, verbose=False)
     robot.xml = robot.define_robot()
     robot.write_xml()
 

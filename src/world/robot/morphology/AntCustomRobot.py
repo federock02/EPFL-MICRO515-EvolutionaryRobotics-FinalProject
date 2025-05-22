@@ -21,7 +21,9 @@ properties = {
 
 
 class AntRobot:
-    def __init__(self, points=NDArray, connectivity_mat=NDArray, joint_limits=None, joint_axis=None, name: str = "AntRobot", props=None,
+    def __init__(self, points=NDArray, connectivity_mat=NDArray,
+                 half_sausage_length=float, 
+                 joint_limits=None, joint_axis=None, name: str = "AntRobot", props=None,
                  fixed_base=False, verbose=True, z_offset=0.0,):
         if props is None:
             props = properties
@@ -36,6 +38,7 @@ class AntRobot:
         self.connectivity_mat = connectivity_mat
         self.offset = np.array([0, 0, 0.75 + z_offset])
         self.points = points
+        self.half_sausage_length = half_sausage_length
         self.n_points = points.shape[0]
         self.point_names = [f"p{i}" for i in range(self.n_points)]
         self.name = name
@@ -143,7 +146,8 @@ class AntRobot:
 
         xml.SubElement(ant_xml, "geom", attrib={"type": "capsule", #sausage shape
                                                     "rgba": "0.8 0.6 0.4 1",
-                                                    "size": "0.25 0.75", #radius, half-length
+                                                    "size": f"0.25 {self.half_sausage_length}", #radius, half-length
+                                                    # "size": "0.25 0.75", #radius, half-length
                                                     "euler": "0 90 0", #rotates the geometry around x,y,z axis (angle in degrees)
                                                     # "mass": "0.02"
                                                 })

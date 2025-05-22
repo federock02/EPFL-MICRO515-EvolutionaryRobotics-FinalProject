@@ -4,6 +4,8 @@ from typing import Dict
 
 import numpy as np
 
+import matplotlib.pyplot as plt
+
 from src.utils.Filesys import search_file_list
 
 NSGA_opts = {
@@ -61,6 +63,14 @@ class NSGAII():
             solutions, function_values, self.n_parents
         )
 
+        # plot the pareto front
+        plt.scatter(function_values[:, 0], function_values[:, 1], c='blue', label='Population')
+        plt.scatter(parents_fitness[:, 0], parents_fitness[:, 1], c='red', label='Selected Parents')
+        plt.xlabel('Objective 1')
+        plt.ylabel('Objective 2')
+        plt.title(f'Pareto Front at Generation {self.current_gen}')
+        plt.legend()
+        plt.show()
 
         #% Some bookkeeping
         self.full_fitness.append(function_values)
