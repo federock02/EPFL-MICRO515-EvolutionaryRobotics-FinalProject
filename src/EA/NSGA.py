@@ -70,7 +70,8 @@ class NSGAII():
         plt.ylabel('Objective 2')
         plt.title(f'Pareto Front at Generation {self.current_gen}')
         plt.legend()
-        plt.show()
+        plt.savefig(os.path.join(self.directory_name, f'pareto_front_gen_{self.current_gen}.png'))
+        plt.close()
 
         #% Some bookkeeping
         self.full_fitness.append(function_values)
