@@ -7,11 +7,41 @@
     <worldbody>
         <body name="Base" pos="0.0 0.0 0.75">
             <joint type="free" armature="0" damping="0" limited="false" margin="0.01" pos="0 0 0"/>
-            <geom type="capsule" rgba="0.8 0.6 0.4 1" size="0.25 0.75" euler="0 90 0"/>
+            <geom type="capsule" rgba="0.8 0.6 0.4 1" size="0.25 0.03042028271606896" euler="0 90 0"/>
             <camera name="track" mode="trackcom" pos="0 -3 0.3" xyaxes="1 0 0 0 0 1"/>
+            <geom name="limb0" type="capsule" fromto="0 0 0 -0.008112075390951722 -0.25 0.0" size="0.08"/>
+            <body name="rod_9.10" pos="-0.008112075390951722 -0.3897667096031042 -0.06988335480155211">
+                <geom type="capsule" fromto="-0.0 0.13976670960310422 0.06988335480155211 0.0 -0.13976670960310422 -0.06988335480155211" size="0.08" name="geom_9.10"/>
+                <site pos="0 0 0" quat="0.7071067811865476 0.0 0.316227766016838 -0.632455532033676" name="site_9.10"/>
+                <joint type="hinge" pos="-0.0 0.13976670960310422 0.06988335480155211" axis="0 0 1" range="-30 30" name="joint_Base=rod_9.10"/>
+                <body pos="-0.0 0.13976670960310422 0.06988335480155211" name="p9">
+                    <site name="p9"/>
+                </body>
+                <body name="rod_10.11" pos="0.0 -0.13976670960310422 -0.20371637136639126">
+                    <geom type="capsule" fromto="-0.0 -0.0 0.13383301656483915 0.0 0.0 -0.13383301656483915" size="0.08" name="geom_10.11"/>
+                    <site pos="0 0 0" quat="0.7071067811865476 -0.0 0.7071067811865476 0.0" name="site_10.11"/>
+                    <joint type="hinge" pos="-0.0 -0.0 0.13383301656483915" axis="-1 1 0" range="30 70" name="joint_rod_9.10=rod_10.11"/>
+                    <body pos="-0.0 -0.0 0.13383301656483915" name="p10">
+                        <site name="p10"/>
+                    </body>
+                </body>
+            </body>
         </body>
     </worldbody>
-    <actuator/>
-    <sensor/>
-    <contact/>
+    <actuator>
+        <motor gear="150" ctrlrange="-1.0 1.0" ctrllimited="true" joint="joint_Base=rod_9.10"/>
+        <motor gear="150" ctrlrange="-1.0 1.0" ctrllimited="true" joint="joint_rod_9.10=rod_10.11"/>
+    </actuator>
+    <sensor>
+        <accelerometer site="site_9.10"/>
+        <gyro site="site_9.10"/>
+        <magnetometer site="site_9.10"/>
+        <accelerometer site="site_10.11"/>
+        <gyro site="site_10.11"/>
+        <magnetometer site="site_10.11"/>
+    </sensor>
+    <contact>
+        <pair geom1="geom_9.10" geom2="floor"/>
+        <pair geom1="geom_10.11" geom2="floor"/>
+    </contact>
 </mujoco>

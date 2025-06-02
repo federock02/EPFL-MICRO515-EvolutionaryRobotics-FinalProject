@@ -126,7 +126,7 @@ class AntCustomEnv(MujocoEnv, utils.EzPickle):
         xy_velocity = (xy_position_after - xy_position_before) / self.dt
         x_velocity, y_velocity = xy_velocity
 
-        forward_reward = x_velocity * self._forward_reward_weight
+        forward_reward = np.sqrt(x_velocity**2 + y_velocity**2) * self._forward_reward_weight
         healthy_reward = 1
         ctrl_cost = np.linalg.norm(action)**2 * self._ctrl_cost_weight
         cfrc_cost = np.linalg.norm( self.data.cfrc_ext[1:])**2 * self._cfrc_cost_weight

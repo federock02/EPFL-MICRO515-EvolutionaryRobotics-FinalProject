@@ -10,6 +10,7 @@ import xml.etree.ElementTree as xml
 import gymnasium as gym
 import numpy as np
 import os
+from tqdm import tqdm
 
 from time import sleep
 
@@ -198,7 +199,7 @@ class AntWorld(World):
             # Control cost is usually negative or zero, we want to maximize -cost
             control_costs = np.array(infos['ctrl_cost'])
             total_volume = np.array(infos['total_volume'])
-            multi_obj_reward_step = np.array([x_velocities, -total_volume]).T
+            multi_obj_reward_step = np.array([x_velocities, -control_costs / 10]).T
             multi_obj_rewards_full[step, done_mask == False] = multi_obj_reward_step[done_mask == False]
 
             # Update the done mask based on the "done" and "truncated" flags
@@ -218,24 +219,26 @@ def run_EA_single(ea_single, world):
         print(f"Generation {gen}")
         pop = ea_single.ask()
         fitnesses_gen = np.empty(len(pop))
-        for index, genotype in enumerate(pop):
-            print(f"Evaluating individual {index}")
-            fit_ind, _ = world.evaluate_individual(genotype)
-            fitnesses_gen[index] = fit_ind
+        with tqdm(total=len(pop), desc=f"Evaluating Generation {gen}", unit="individual") as pbar:
+            for index, genotype in enumerate(pop):
+                print(f"Evaluating individual {index}")
+                fit_ind, _ = world.evaluate_individual(genotype)
+                fitnesses_gen[index] = fit_ind
+                pbar.update(1)
         ea_single.tell(pop, fitnesses_gen)
 
 
 def run_EA_multi(ea_multi, world):
     for gen in range(ea_multi.n_gen):
+        #print(f"Generation {gen}")
         pop = ea_multi.ask()
         fitnesses_gen = np.empty((len(pop), 2))
-        print(f"Generation {gen}")
-        for index, genotype in enumerate(pop):
-            print(f"Evaluating individual {index}")
-            _, fit_ind = world.evaluate_individual(genotype)
-            fitnesses_gen[index] = fit_ind
+        with tqdm(total=len(pop), desc=f"Evaluating Generation {gen}", unit="individual") as pbar:
+            for index, genotype in enumerate(pop):
+                _, fit_ind = world.evaluate_individual(genotype)
+                fitnesses_gen[index] = fit_ind
+                pbar.update(1)
         ea_multi.tell(pop, fitnesses_gen)
-
 
 def generate_best_individual_video(world, video_name: str = 'EvoRob3_video.mp4'):
     env = gym.make(ENV_NAME,
@@ -400,8 +403,7 @@ def _reshape_observations(observations, leg_switches):
 def main():
     # %% Understanding the world
     # genotype = np.random.uniform(-1, 1, 945+4)
-    #genotype = np.random.uniform(-1, 1, 1003+BODY_PARAMS)  # 1003 NN weights, 10 leg switches, 2*10 parameters per leg
-    genotype = np.random.uniform(-1, 1, 1003+BODY_PARAMS)  # 2537 NN weights, 10 leg switches, 2*10 parameters per leg
+    genotype = np.random.uniform(-1, 1, 1003+BODY_PARAMS)  # 1003 NN weights, 10 leg switches, 2*10 parameters per leg
     # genotype[1003:] = 1.0
     # genotype[-1] = 0
     visualise_individual(genotype)
@@ -410,12 +412,12 @@ def main():
     """ world = AntWorld()
     n_parameters = world.n_params
 
-    population_size = 10
+    population_size = 100
     CMAES_opts["min"] = -1
     CMAES_opts["max"] = 1
-    CMAES_opts["num_parents"] = 5
-    CMAES_opts["num_generations"] = 10
-    CMAES_opts["mutation_sigma"] = 0.33
+    CMAES_opts["num_parents"] = 50
+    CMAES_opts["num_generations"] = 100
+    CMAES_opts["mutation_sigma"] = 0.1
 
     results_dir = os.path.join(ROOT_DIR, 'results', ENV_NAME, 'single')
     ea_single = CMAES(population_size, n_parameters, CMAES_opts, results_dir)
@@ -427,11 +429,11 @@ def main():
     world = AntWorld()
     n_parameters = world.n_params
 
-    population_size = 20
+    population_size = 30
     NSGA_opts["min"] = -1
     NSGA_opts["max"] = 1
     NSGA_opts["num_parents"] = population_size
-    NSGA_opts["num_generations"] = 20
+    NSGA_opts["num_generations"] = 100
     NSGA_opts["mutation_prob"] = 0.03
     NSGA_opts["crossover_prob"] = 0.05
 
@@ -442,6 +444,7 @@ def main():
 
     # %% visualise
     # TODO: Make a video of the best individual, and plot the fitness curve.
+    #best_individual = np.load(os.path.join(results_dir, f"{NSGA_opts['num_generations']-1}", "x_best.npy"))
     best_individual = np.load(os.path.join(results_dir, f"{NSGA_opts['num_generations']-1}", "x_best.npy"))
 
     points, connectivity_mat, half_sausage_length = world.geno2pheno(best_individual)

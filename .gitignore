@@ -1,6 +1,8 @@
 results/*
 *.mp4
 
+MUJOCO_LOG.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
