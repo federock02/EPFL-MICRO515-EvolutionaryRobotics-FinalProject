@@ -36,6 +36,8 @@ class CMAES():
         self.f_best_so_far = -np.inf
         self.x = [None]*self.n_pop
         self.f = [-np.inf]*self.n_pop
+        self.x_best_10_so_far = None
+        self.f_best_10_so_far = None
 
     def load_cmaes(self):
         #TODO
@@ -67,6 +69,35 @@ class CMAES():
             best_index = np.argmax(function_values)
             self.f_best_so_far = function_values[best_index]
             self.x_best_so_far = solutions[best_index]
+        
+        # find the 10 best solutions so far
+        # print(f"Function values: {function_values}")
+        # print(f"Solutions: {solutions}")
+        best_10_indices = np.argsort(function_values)[-10:]
+        # print(f"Best 10 indices: {best_10_indices}")
+        best_10_x = [solutions[i] for i in best_10_indices]
+        best_10_x = np.array(best_10_x)
+        # print(f"Best 10 x: {best_10_x}")
+        best_10_f = function_values[best_10_indices]
+        # print(f"Best 10 f: {best_10_f}")
+        # print(f"Best fitness so far: {self.f_best_10_so_far}")
+        # print(f"Best x so far: {self.x_best_10_so_far}")
+        if self.x_best_10_so_far is not None:
+            best_20_x = np.concatenate((self.x_best_10_so_far, best_10_x), axis=0)
+        else:
+            best_20_x = best_10_x
+        # print(f"Best 20 x: {best_20_x}")
+        if self.f_best_10_so_far is not None:
+            best_20_f = np.concatenate((self.f_best_10_so_far, best_10_f), axis=0)
+        else:
+            best_20_f = best_10_f
+        # print(f"Best 20 f: {best_20_f}")
+        best_10_final_indices = np.argsort(best_20_f)[-10:]
+        # print(f"Best 10 final indices: {best_10_final_indices}")
+        self.f_best_10_so_far = best_20_f[best_10_final_indices]
+        # print(f"Best 10 f so far: {self.f_best_10_so_far}")
+        self.x_best_10_so_far = best_20_x[best_10_final_indices]
+        # print(f"Best 10 x so far: {self.x_best_10_so_far}")
 
 
         if self.current_gen % 5 == 0:
@@ -92,6 +123,8 @@ class CMAES():
         np.save(os.path.join(curr_gen_path, 'x_best'), np.array(self.x_best_so_far))
         np.save(os.path.join(curr_gen_path, 'x'), np.array(self.x))
         np.save(os.path.join(curr_gen_path, 'f'), np.array(self.f))
+        np.save(os.path.join(curr_gen_path, 'f_best_10'), np.array(self.f_best_10_so_far))
+        np.save(os.path.join(curr_gen_path, 'x_best_10'), np.array(self.x_best_10_so_far))
 
     def load_checkpoint(self):
         dir_path = search_file_list(self.directory_name, 'f_best.npy')
@@ -107,6 +140,8 @@ class CMAES():
         self.x_best_so_far = np.load(os.path.join(curr_gen_path, 'x_best.npy'))
         self.x = np.load(os.path.join(curr_gen_path, 'x.npy'))
         self.f = np.load(os.path.join(curr_gen_path, 'f.npy'))
+        self.f_best_10_so_far = np.load(os.path.join(curr_gen_path, 'f_best_10.npy'))
+        self.x_best_10_so_far = np.load(os.path.join(curr_gen_path, 'x_best_10.npy'))
 
         self.cmaes = self.load_cmaes()
         for x, f in zip(self.full_x, self.full_fitness):

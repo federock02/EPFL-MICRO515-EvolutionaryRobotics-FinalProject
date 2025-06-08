@@ -196,11 +196,13 @@ class AntWorld(World):
             rewards_full[step, done_mask == False] = rewards[done_mask == False]
 
             absolute_velocity = np.array(infos['reward_forward'])
+            distance_reward = np.array(infos['reward_distance'])
             # Control cost is usually negative or zero, we want to maximize -cost
             control_costs = np.array(infos['ctrl_cost'])
             total_volume = np.array(infos['total_volume'])
-            total_distance= np.array(infos['distance_from_origin'])
-            multi_obj_reward_step = np.array([absolute_velocity * 10, total_distance / 10]).T
+            #multi_obj_reward_step = np.array([x_velocities, -total_volume]).T
+            x_velocities_signed_pow = np.sign(absolute_velocity) * np.abs(absolute_velocity)**2
+            multi_obj_reward_step = np.array([distance_reward, -control_costs/10]).T
             multi_obj_rewards_full[step, done_mask == False] = multi_obj_reward_step[done_mask == False]
 
             # Update the done mask based on the "done" and "truncated" flags
@@ -403,7 +405,6 @@ def _reshape_observations(observations, leg_switches):
 
 def main():
     # %% Understanding the world
-    # genotype = np.random.uniform(-1, 1, 945+4)
     #genotype = np.random.uniform(-1, 1, 1003+BODY_PARAMS)  # 1003 NN weights, 10 leg switches, 2*10 parameters per leg
     # genotype[1003:] = 1.0
     # genotype[-1] = 0

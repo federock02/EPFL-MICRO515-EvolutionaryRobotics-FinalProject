@@ -19,7 +19,7 @@ NSGA_opts = {
 
 
 class NSGAII():
-    def __init__(self, n_pop, n_params, opts: Dict = NSGA_opts, output_dir: str = "./results/NSGAII"):
+    def __init__(self, n_pop, n_params, opts: Dict = NSGA_opts, output_dir: str = "./results/NSGAII", cont=False):
         """
         Evolutionary Strategy [INCOMPLETE]
 
@@ -36,6 +36,8 @@ class NSGAII():
         self.min = opts["min"]
         self.max = opts["max"]
 
+        self.cont = cont
+
         self.current_gen = 0
         self.F = opts["mutation_prob"]
         self.Cr = opts["crossover_prob"]
@@ -44,8 +46,10 @@ class NSGAII():
         self.directory_name = output_dir
         self.full_x = []
         self.full_fitness = []
-        self.x_best_so_far = None
-        self.f_best_so_far = -np.inf
+        self.x_best_so_far = []
+        self.x_best_10_so_far = None
+        self.f_best_so_far = [[-np.inf]*2]
+        self.f_best_10_so_far = None
         self.x = None
         self.f = None
 
@@ -63,8 +67,8 @@ class NSGAII():
             solutions, function_values, self.n_parents
         )
 
+        # plot the pareto front
         if self.current_gen % 10 == 0:
-            # plot the pareto front
             plt.scatter(function_values[:, 0], function_values[:, 1], c='blue', label='Population')
             plt.scatter(parents_fitness[:, 0], parents_fitness[:, 1], c='red', label='Selected Parents')
             plt.xlabel('Objective 1')
@@ -76,6 +80,7 @@ class NSGAII():
 
         #% Some bookkeeping
         self.full_fitness.append(function_values)
+        # print(self.full_fitness)
         self.full_x.append(solutions)
         self.x = parents_population
         self.f = parents_fitness
@@ -85,6 +90,33 @@ class NSGAII():
             best_index = np.argmax(aggregate_vals)
             self.f_best_so_far = function_values[best_index]
             self.x_best_so_far = solutions[best_index]
+        
+        # find the 10 best solutions so far
+        # print(f"Aggregate values: {aggregate_vals}")
+        best_10_indices = np.argsort(aggregate_vals)[-10:]
+        # print(f"Best 10 indices: {best_10_indices}")
+        best_10_x = solutions[best_10_indices]
+        # print(f"Best 10 x: {best_10_x}")
+        best_10_f = function_values[best_10_indices]
+        # print(f"Best 10 f: {best_10_f}")
+        # print(f"Best fitness so far: {self.f_best_10_so_far}")
+        # print(f"Best x so far: {self.x_best_10_so_far}")
+        if self.x_best_10_so_far is not None:
+            best_20_x = np.concatenate((self.x_best_10_so_far, best_10_x), axis=0)
+        else:
+            best_20_x = best_10_x
+        # print(f"Best 20 x: {best_20_x}")
+        if self.f_best_10_so_far is not None:
+            best_20_f = np.concatenate((self.f_best_10_so_far, best_10_f), axis=0)
+        else:
+            best_20_f = best_10_f
+        # print(f"Best 20 f: {best_20_f}")
+        best_10_final_indices = np.argsort(np.sum(best_20_f, axis=1))[-10:]
+        # print(f"Best 10 final indices: {best_10_final_indices}")
+        self.f_best_10_so_far = best_20_f[best_10_final_indices]
+        # print(f"Best 10 f so far: {self.f_best_10_so_far}")
+        self.x_best_10_so_far = best_20_x[best_10_final_indices]
+        # print(f"Best 10 x so far: {self.x_best_10_so_far}")
 
         if self.current_gen % 5 == 0:
             print(f"Best fitness in generation {self.current_gen}: {self.f_best_so_far}\n"
@@ -97,14 +129,21 @@ class NSGAII():
 
 
     def initialise_x0(self):
+        if self.cont:
+            print("Loading last generation...")
+            all_individuals = np.load(os.path.join(self.directory_name, "full_x.npy")).copy()
+            last_gen = all_individuals[-1]
+            return last_gen
         return np.random.uniform(self.min, self.max, size=(self.n_pop, self.n_params))
 
     def create_children(self, population_size):
+        '''
         children = []
         parent_indices = np.arange(self.n_parents)
-        crossover_factor = 2.0
-        mutation_factor = 5.0
+        crossover_factor = 15.0
+        mutation_factor = 20.0
 
+        print("Crossover and mutation in progress...")
         while len(children) < population_size:
             # Select parents for crossover
             idx1, idx2 = np.random.choice(parent_indices, 2, replace=False)
@@ -155,6 +194,30 @@ class NSGAII():
             if len(children) < population_size:
                 children.append(c2)
         return np.array(children)
+        '''
+        new_offspring = np.empty((population_size, self.n_params))
+        for i in range(population_size):
+            r0 = i
+            while (r0 == i):
+                r0 = np.floor(np.random.random() * self.n_pop).astype(int)
+            r1 = r0
+            while (r1 == r0 or r1 == i):
+                r1 = np.floor(np.random.random() * self.n_pop).astype(int)
+            r2 = r1
+            while (r2 == r1 or r2 == r0 or r2 == i):
+                r2 = np.floor(np.random.random() * self.n_pop).astype(int)
+
+            jrand = np.floor(np.random.random() * population_size).astype(int)
+
+            for j in range(self.n_params):
+                if (np.random.random() <= self.Cr or j == jrand):
+                    # Mutation
+                    new_offspring[i][j] = copy.deepcopy(self.x[r0][j] + self.F * (self.x[r1][j] - self.x[r2][j]))
+                else:
+                    new_offspring[i][j] = copy.deepcopy(self.x[r0][j])
+
+        mutated_population = np.clip(new_offspring, self.min, self.max)
+        return mutated_population
 
 
 
@@ -233,6 +296,8 @@ class NSGAII():
         np.save(os.path.join(curr_gen_path, 'x_best'), np.array(self.x_best_so_far))
         np.save(os.path.join(curr_gen_path, 'x'), np.array(self.x))
         np.save(os.path.join(curr_gen_path, 'f'), np.array(self.f))
+        np.save(os.path.join(curr_gen_path, 'f_best_10'), np.array(self.f_best_10_so_far))
+        np.save(os.path.join(curr_gen_path, 'x_best_10'), np.array(self.x_best_10_so_far))
 
     def load_checkpoint(self):
         dir_path = search_file_list(self.directory_name, 'f_best.npy')
@@ -248,3 +313,5 @@ class NSGAII():
         self.x_best_so_far = np.load(os.path.join(curr_gen_path, 'x_best.npy'))
         self.x = np.load(os.path.join(curr_gen_path, 'x.npy'))
         self.f = np.load(os.path.join(curr_gen_path, 'f.npy'))
+        self.f_best_10_so_far = np.load(os.path.join(curr_gen_path, 'f_best_10.npy'))
+        self.x_best_10_so_far = np.load(os.path.join(curr_gen_path, 'x_best_10.npy'))

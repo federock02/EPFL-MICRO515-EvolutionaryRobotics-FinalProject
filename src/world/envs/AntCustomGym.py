@@ -125,14 +125,18 @@ class AntCustomEnv(MujocoEnv, utils.EzPickle):
 
         xy_velocity = (xy_position_after - xy_position_before) / self.dt
         x_velocity, y_velocity = xy_velocity
+        abs_velocity = np.linalg.norm(xy_velocity, ord=2)
+        abs_distance = np.linalg.norm(xy_position_after, ord=2)
 
-        forward_reward = np.sqrt(x_velocity**2 + y_velocity**2) * self._forward_reward_weight # absolute speed
-        healthy_reward = 1
+        # forward_reward = x_velocity * self._forward_reward_weight
+        forward_reward = abs_velocity * self._forward_reward_weight
+        distance_reward = abs_distance * self._forward_reward_weight
+        healthy_reward = 10
         ctrl_cost = np.linalg.norm(action)**2 * self._ctrl_cost_weight
         cfrc_cost = np.linalg.norm( self.data.cfrc_ext[1:])**2 * self._cfrc_cost_weight
 
         #TODO
-        reward = healthy_reward + forward_reward -ctrl_cost -cfrc_cost
+        reward = healthy_reward + forward_reward# - ctrl_cost - cfrc_cost
         observation = self._get_obs()
 
         body_volumes = {}
@@ -161,6 +165,7 @@ class AntCustomEnv(MujocoEnv, utils.EzPickle):
 
         info = {
             "reward_forward": forward_reward,
+            "reward_distance": distance_reward,
             "healthy_reward": healthy_reward,
             "ctrl_cost": ctrl_cost,
             "cfrc_cost": cfrc_cost,
@@ -178,7 +183,7 @@ class AntCustomEnv(MujocoEnv, utils.EzPickle):
             DOF = np.argwhere((np.isnan(qacc)) + (np.isinf(qacc)) + (np.abs(qacc) > 1e6)).squeeze()[0]
             print(ValueError(f'MuJoCo Warning: Nan, Inf or huge value in QACC at DOF {DOF}'))
             terminated = True
-        if self.data.qpos[2] < 0.2 or self.data.qpos[2] > 1.0:
+        if self.data.qpos[2] < 0.25 or self.data.qpos[2] > 1.0:
             terminated = True
         if np.isinf(observation).any():
             terminated = True
