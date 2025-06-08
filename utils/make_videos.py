@@ -1,5 +1,7 @@
 from src.EA.CMAES import CMAES, CMAES_opts
 from src.EA.NSGA import NSGAII, NSGA_opts
+from src.EA.NSGA_sol import NSGAII_sol, NSGA_opts
+from src.EA.CMAES import CMAES, CMAES_opts
 from src.world.World import World
 from src.world.robot.controllers import MLP
 from src.world.robot.morphology.AntCustomRobot import AntRobot
@@ -298,8 +300,8 @@ def visualise_individual(genotype):
     #print(reshaped_obs)
     #print(len(reshaped_obs))
     #print(reshaped_obs.shape)
-    # for _ in range(100):
-       # sleep(0.1)
+    for _ in range(100):
+        sleep(0.1)
     for step in range(200):
         action = world.controller.get_action(reshaped_obs)
         reshaped_action = _reshape_action(action, world.leg_switches)
@@ -401,35 +403,62 @@ def _reshape_observations(observations, leg_switches):
     return reshaped
 
 def main():
-    world = AntWorld()
+    # %% Understanding the world
+    # genotype = np.random.uniform(-1, 1, 945+4)
+    #genotype = np.random.uniform(-1, 1, 1003+BODY_PARAMS)  # 1003 NN weights, 10 leg switches, 2*10 parameters per leg
+    genotype = np.random.uniform(-1, 1, 1003+BODY_PARAMS)  # 2537 NN weights, 10 leg switches, 2*10 parameters per leg
+    # genotype[1003:] = 1.0
+    # genotype[-1] = 0
 
-    """ population_size = 12
+
+    # %% Optimise single-objective
+    """ world = AntWorld()
+    n_parameters = world.n_params
+
+    population_size = 10
+    CMAES_opts["min"] = -1
+    CMAES_opts["max"] = 1
+    CMAES_opts["num_parents"] = 5
+    CMAES_opts["num_generations"] = 10
+    CMAES_opts["mutation_sigma"] = 0.33
+
+    results_dir = os.path.join(ROOT_DIR, 'results', ENV_NAME, 'single')
+    ea_single = CMAES(population_size, n_parameters, CMAES_opts, results_dir)
+
+    run_EA_single(ea_single, world) """
+
+    # %% Optimise multi-objective
+    # TODO implement NSGAII
+    world = AntWorld()
+    n_parameters = world.n_params
+
+    population_size = 40
     NSGA_opts["min"] = -1
     NSGA_opts["max"] = 1
     NSGA_opts["num_parents"] = population_size
-    NSGA_opts["num_generations"] = 2
+    NSGA_opts["num_generations"] = 200
     NSGA_opts["mutation_prob"] = 0.05
-    NSGA_opts["crossover_prob"] = 0.07 """
+    NSGA_opts["crossover_prob"] = 0.07
 
-    # results_dir = os.path.join(ROOT_DIR, 'saves_03-06')
-    results_dir = os.path.join(ROOT_DIR, 'results', ENV_NAME, 'multi')
+    population_size = 40
+    CMAES_opts["min"] = -1
+    CMAES_opts["max"] = 1
+    CMAES_opts["num_parents"] = 100
+    CMAES_opts["num_generations"] = 100
+    CMAES_opts["mutation_sigma"] = 0.1
 
-    gen = 26
+    results_dir = os.path.join(ROOT_DIR, 'results', ENV_NAME, 'single')
+    ea_single = CMAES(population_size, n_parameters, CMAES_opts, results_dir)
+    #run_EA_single(ea_single, world)
+
+    #results_dir = os.path.join(ROOT_DIR, 'results', ENV_NAME, 'multi')
+    #ea_multi_obj = NSGAII(population_size, n_parameters, NSGA_opts, results_dir, cont=False)
+    #run_EA_multi(ea_multi_obj, world)
 
     # %% visualise
     # TODO: Make a video of the best individual, and plot the fitness curve.
-    all_individuals = np.load(os.path.join(results_dir, "full_x.npy")).copy()
-    all_fitnesses = np.load(os.path.join(results_dir, "full_f.npy")).copy()
-    #print(f"shape: ", all_individuals.shape, all_fitnesses.shape)
-    #print(all_fitnesses[1])
-    #print(np.sum(all_fitnesses[1], axis=1))
-    #print(np.argsort(np.sum(all_fitnesses[1], axis=1)))
-    
-    last_gen = all_individuals[gen][np.argsort(np.sum(all_fitnesses[gen], axis=1))]
-    for ind in last_gen:
-        visualise_individual(ind)
+    best_individual = np.load(os.path.join(results_dir, f"{CMAES_opts['num_generations']-1}", "x_best.npy"))
 
-    return
     points, connectivity_mat, half_sausage_length = world.geno2pheno(best_individual)
     robot = AntRobot(points, connectivity_mat, half_sausage_length, world.joint_limits, world.joint_axis, verbose=False)
     robot.xml = robot.define_robot()
@@ -446,9 +475,17 @@ def main():
 
     generate_best_individual_video(world)
 
-    best_10 = np.load(os.path.join(results_dir, f"{NSGA_opts['num_generations']-1}", "x_best_10.npy"))
+    best_10 = np.load(os.path.join(results_dir, f"{CMAES_opts['num_generations']-1}", "x_best_10.npy"))
+
+    gen = 99
+    
+    all_individuals = np.load(os.path.join(results_dir, "full_x.npy")).copy()
+    all_fitnesses = np.load(os.path.join(results_dir, "full_f.npy")).copy()
+    last_gen = all_individuals[gen][np.argsort(all_fitnesses[gen])]
+    best_10 = last_gen[:10]
 
     for i, individual in enumerate(best_10):
+        print(f"Generating video for individual {i}")
         points, connectivity_mat, half_sausage_length = world.geno2pheno(individual)
         robot = AntRobot(points, connectivity_mat, half_sausage_length, world.joint_limits, world.joint_axis, verbose=False)
         robot.xml = robot.define_robot()
