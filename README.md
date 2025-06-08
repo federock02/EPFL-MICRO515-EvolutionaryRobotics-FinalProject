@@ -2,6 +2,8 @@
 
 This project explores how jointly evolving a robot’s body and controller affects locomotion in MuJoCo’s Ant environment.
 
+![gif_sausage](https://github.com/user-attachments/assets/dd701737-ff52-438d-86c4-4c3b1697df7c)
+
 ## Key Features
 - **Variable Morphology**  
   - Cylindrical torso length ∈ [0.26 m, 2.25 m]  
