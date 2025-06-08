@@ -1,5 +1,5 @@
 from src.EA.CMAES import CMAES, CMAES_opts
-from src.EA.NSGA_sol import NSGAII_sol, NSGA_opts
+from src.EA.NSGA import NSGAII, NSGA_opts
 from src.world.World import World
 from src.world.robot.controllers import MLP
 from src.world.robot.morphology.AntCustomRobot import AntRobot
@@ -10,7 +10,6 @@ import xml.etree.ElementTree as xml
 import gymnasium as gym
 import numpy as np
 import os
-from tqdm import tqdm
 
 from time import sleep
 
@@ -195,12 +194,14 @@ class AntWorld(World):
             # Store rewards for active environments only
             rewards_full[step, done_mask == False] = rewards[done_mask == False]
 
-            absolute_velocity = np.array(infos['reward_forward'])
+            x_velocities = np.array(infos['reward_forward'])
+            distance_reward = np.array(infos['reward_distance'])
             # Control cost is usually negative or zero, we want to maximize -cost
             control_costs = np.array(infos['ctrl_cost'])
             total_volume = np.array(infos['total_volume'])
-            total_distance= np.array(infos['distance_from_origin'])
-            multi_obj_reward_step = np.array([absolute_velocity * 10, total_distance / 10]).T
+            #multi_obj_reward_step = np.array([x_velocities, -total_volume]).T
+            x_velocities_signed_pow = np.sign(x_velocities) * np.abs(x_velocities)**2
+            multi_obj_reward_step = np.array([distance_reward, -control_costs/10]).T
             multi_obj_rewards_full[step, done_mask == False] = multi_obj_reward_step[done_mask == False]
 
             # Update the done mask based on the "done" and "truncated" flags
@@ -220,26 +221,24 @@ def run_EA_single(ea_single, world):
         print(f"Generation {gen}")
         pop = ea_single.ask()
         fitnesses_gen = np.empty(len(pop))
-        with tqdm(total=len(pop), desc=f"Evaluating Generation {gen}", unit="individual") as pbar:
-            for index, genotype in enumerate(pop):
-                print(f"Evaluating individual {index}")
-                fit_ind, _ = world.evaluate_individual(genotype)
-                fitnesses_gen[index] = fit_ind
-                pbar.update(1)
+        for index, genotype in enumerate(pop):
+            print(f"Evaluating individual {index}")
+            fit_ind, _ = world.evaluate_individual(genotype)
+            fitnesses_gen[index] = fit_ind
         ea_single.tell(pop, fitnesses_gen)
 
 
 def run_EA_multi(ea_multi, world):
     for gen in range(ea_multi.n_gen):
-        #print(f"Generation {gen}")
         pop = ea_multi.ask()
         fitnesses_gen = np.empty((len(pop), 2))
-        with tqdm(total=len(pop), desc=f"Evaluating Generation {gen}", unit="individual") as pbar:
-            for index, genotype in enumerate(pop):
-                _, fit_ind = world.evaluate_individual(genotype)
-                fitnesses_gen[index] = fit_ind
-                pbar.update(1)
+        print(f"Generation {gen}")
+        for index, genotype in enumerate(pop):
+            print(f"Evaluating individual {index}")
+            _, fit_ind = world.evaluate_individual(genotype)
+            fitnesses_gen[index] = fit_ind
         ea_multi.tell(pop, fitnesses_gen)
+
 
 def generate_best_individual_video(world, video_name: str = 'EvoRob3_video.mp4'):
     env = gym.make(ENV_NAME,
@@ -299,8 +298,8 @@ def visualise_individual(genotype):
     #print(reshaped_obs)
     #print(len(reshaped_obs))
     #print(reshaped_obs.shape)
-    for _ in range(100):
-        sleep(0.1)
+    # for _ in range(100):
+       # sleep(0.1)
     for step in range(200):
         action = world.controller.get_action(reshaped_obs)
         reshaped_action = _reshape_action(action, world.leg_switches)
@@ -402,52 +401,35 @@ def _reshape_observations(observations, leg_switches):
     return reshaped
 
 def main():
-    # %% Understanding the world
-    # genotype = np.random.uniform(-1, 1, 945+4)
-    #genotype = np.random.uniform(-1, 1, 1003+BODY_PARAMS)  # 1003 NN weights, 10 leg switches, 2*10 parameters per leg
-    # genotype[1003:] = 1.0
-    # genotype[-1] = 0
-    #visualise_individual(genotype)
-
-    # %% Optimise single-objective
-    """ world = AntWorld()
-    n_parameters = world.n_params
-
-    population_size = 100
-    CMAES_opts["min"] = -1
-    CMAES_opts["max"] = 1
-    CMAES_opts["num_parents"] = 50
-    CMAES_opts["num_generations"] = 100
-    CMAES_opts["mutation_sigma"] = 0.1
-
-    results_dir = os.path.join(ROOT_DIR, 'results', ENV_NAME, 'single')
-    ea_single = CMAES(population_size, n_parameters, CMAES_opts, results_dir)
-
-    run_EA_single(ea_single, world) """
-
-    # %% Optimise multi-objective
-    # TODO implement NSGAII
     world = AntWorld()
-    n_parameters = world.n_params
 
-    population_size = 50
+    """ population_size = 12
     NSGA_opts["min"] = -1
     NSGA_opts["max"] = 1
     NSGA_opts["num_parents"] = population_size
-    NSGA_opts["num_generations"] = 150
-    NSGA_opts["mutation_prob"] = 0.03
-    NSGA_opts["crossover_prob"] = 0.05
+    NSGA_opts["num_generations"] = 2
+    NSGA_opts["mutation_prob"] = 0.05
+    NSGA_opts["crossover_prob"] = 0.07 """
 
+    # results_dir = os.path.join(ROOT_DIR, 'saves_03-06')
     results_dir = os.path.join(ROOT_DIR, 'results', ENV_NAME, 'multi')
-    ea_multi_obj = NSGAII_sol(population_size, n_parameters, NSGA_opts, results_dir)
 
-    run_EA_multi(ea_multi_obj, world)
+    gen = 26
 
     # %% visualise
     # TODO: Make a video of the best individual, and plot the fitness curve.
-    #best_individual = np.load(os.path.join(results_dir, f"{NSGA_opts['num_generations']-1}", "x_best.npy"))
-    best_individual = np.load(os.path.join(results_dir, f"{NSGA_opts['num_generations']-1}", "x_best.npy"))
+    all_individuals = np.load(os.path.join(results_dir, "full_x.npy")).copy()
+    all_fitnesses = np.load(os.path.join(results_dir, "full_f.npy")).copy()
+    #print(f"shape: ", all_individuals.shape, all_fitnesses.shape)
+    #print(all_fitnesses[1])
+    #print(np.sum(all_fitnesses[1], axis=1))
+    #print(np.argsort(np.sum(all_fitnesses[1], axis=1)))
+    
+    last_gen = all_individuals[gen][np.argsort(np.sum(all_fitnesses[gen], axis=1))]
+    for ind in last_gen:
+        visualise_individual(ind)
 
+    return
     points, connectivity_mat, half_sausage_length = world.geno2pheno(best_individual)
     robot = AntRobot(points, connectivity_mat, half_sausage_length, world.joint_limits, world.joint_axis, verbose=False)
     robot.xml = robot.define_robot()
@@ -463,6 +445,24 @@ def main():
         f.write(world_xml)
 
     generate_best_individual_video(world)
+
+    best_10 = np.load(os.path.join(results_dir, f"{NSGA_opts['num_generations']-1}", "x_best_10.npy"))
+
+    for i, individual in enumerate(best_10):
+        points, connectivity_mat, half_sausage_length = world.geno2pheno(individual)
+        robot = AntRobot(points, connectivity_mat, half_sausage_length, world.joint_limits, world.joint_axis, verbose=False)
+        robot.xml = robot.define_robot()
+        robot.write_xml()
+            # % Defining the Robot environment in MuJoCo
+        world_xml = xml.parse(os.path.join(ROOT_DIR, 'src', 'world', 'robot', 'assets', "ant_world.xml"))
+        robot_env = world_xml.getroot()
+
+        robot_env.append(xml.Element("include", attrib={"file": "AntRobot.xml"}))
+        world_xml = xml.tostring(robot_env, encoding='unicode')
+        with open(world.world_file, "w") as f:
+            f.write(world_xml)
+
+        generate_best_individual_video(world, video_name=f'EvoRob3_video_{i}.mp4')
 
 
 if __name__ == '__main__':

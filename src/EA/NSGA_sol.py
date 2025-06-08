@@ -86,6 +86,14 @@ class NSGAII_sol():
 
 
     def initialise_x0(self):
+        # uncomment when starting from the previous learning best population
+        """ from src.utils.Filesys import get_project_root
+        ROOT_DIR = get_project_root()
+        ENV_NAME = 'Ant_custom'
+
+        results_dir = os.path.join(ROOT_DIR, 'results', ENV_NAME, 'multi')
+        all_individuals = np.load(os.path.join(results_dir, "full_x.npy")).copy()
+        return all_individuals[-1] """
         return np.random.uniform(low=self.min, high=self.max, size=(self.n_pop, self.n_params))
 
     def create_children(self, population_size):
