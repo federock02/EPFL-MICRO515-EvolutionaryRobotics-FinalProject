@@ -30,7 +30,7 @@ This project explores how jointly evolving a robot’s body and controller affec
 - Co‐optimizing morphology and controller in a high‐dimensional, discrete search space led to unstable solutions.  
 - Future directions: smoother morphology encodings, controller pre‐training, refined objectives, and larger populations.
 
-📂 [Videos & Plots](https://github.com/federock02/EPFL-MICRO515-EvolutionaryRobotics-FinalProject/blob/f18972f192bcc637e201659d41876789f78d4b6d/videos&plots)  |  🔗 [Full Report](#https://github.com/federock02/EPFL-MICRO515-EvolutionaryRobotics-FinalProject/blob/main/EvoRob-FinalProjectReport.pdf)
+📂 [Videos & Plots](https://github.com/federock02/EPFL-MICRO515-EvolutionaryRobotics-FinalProject/blob/f18972f192bcc637e201659d41876789f78d4b6d/videos&plots)  |  🔗 [Full Report](https://github.com/federock02/EPFL-MICRO515-EvolutionaryRobotics-FinalProject/blob/main/EvoRob-FinalProjectReport.pdf)
 
 ## How to Run
 
